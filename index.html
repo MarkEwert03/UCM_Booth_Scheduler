@@ -122,6 +122,14 @@
       letter-spacing: .4px;
     }
 
+    /* Style for time slot columns */
+    th:nth-child(n+4),
+    td:nth-child(n+4) {
+      text-align: center;
+      min-width: 60px;
+      width: 60px;
+    }
+
     tbody tr:nth-child(even) {
       background: #f1f5f9;
     }
@@ -725,6 +733,30 @@ function extractEndSlots(rawAvailability) {
     }
 
     function renderOriginalTable(displayRows) {
+      // First, collect all unique time slots from the data
+      const allTimeSlots = new Set();
+      displayRows.forEach(row => {
+        row.slots.forEach(slot => allTimeSlots.add(slot));
+      });
+      
+      // Convert to sorted array
+      const sortedTimeSlots = Array.from(allTimeSlots).sort((a, b) => timeToNumber(a) - timeToNumber(b));
+      
+      // Update table header
+      const originalTableHead = document.querySelector('#originalTable thead tr');
+      originalTableHead.innerHTML = '';
+      
+      // Add static columns
+      originalTableHead.appendChild(createTableHeader('#'));
+      originalTableHead.appendChild(createTableHeader('Name'));
+      originalTableHead.appendChild(createTableHeader('Availability'));
+      
+      // Add dynamic time slot columns
+      sortedTimeSlots.forEach(timeSlot => {
+        originalTableHead.appendChild(createTableHeader(timeSlot));
+      });
+
+      // Clear and populate table body
       originalTableBody.innerHTML = '';
       let idx = 1;
       for (const row of displayRows) {
@@ -739,22 +771,25 @@ function extractEndSlots(rawAvailability) {
         const tdRaw = document.createElement('td');
         tdRaw.innerHTML = row.rawTokens.map(tok => `<code class="inline">${escapeHTML(tok)}</code>`).join(' ');
 
-        const tdSlots = document.createElement('td');
-        if (row.slots.length > 0) {
-          const container = document.createElement('div');
-          container.className = 'slots';
-          row.slots.forEach(s => {
-            const span = document.createElement('span');
-            span.className = 'slot-pill';
-            span.textContent = s;
-            container.appendChild(span);
-          });
-          tdSlots.appendChild(container);
-        } else {
-          tdSlots.innerHTML = '<em style="opacity:.6">None</em>';
-        }
-
-        tr.append(tdIndex, tdName, tdRaw, tdSlots);
+        // First append the static columns
+        tr.append(tdIndex, tdName, tdRaw);
+        
+        // Then add time slot availability columns
+        sortedTimeSlots.forEach(timeSlot => {
+          const tdSlot = document.createElement('td');
+          tdSlot.style.textAlign = 'center';
+          
+          if (row.slots.includes(timeSlot)) {
+            tdSlot.innerHTML = '<span style="color: #16a34a; font-weight: bold; font-size: 1.2em;">✓</span>';
+            tdSlot.title = `Available for ${timeSlot}`;
+            tdSlot.style.backgroundColor = '#f0f9ff';
+          } else {
+            tdSlot.innerHTML = '<span style="color: #dc2626; opacity: 0.4; font-size: 1.1em;">✕</span>';
+            tdSlot.title = `Not available for ${timeSlot}`;
+          }
+          
+          tr.appendChild(tdSlot);
+        });
         originalTableBody.appendChild(tr);
       }
 
@@ -762,6 +797,12 @@ function extractEndSlots(rawAvailability) {
       const usable = displayRows.filter(r => r.slots.length > 0).length;
       originalMeta.textContent = `Volunteers: ${total} (Assignable: ${usable}) • Generated at ${new Date().toLocaleTimeString()}`;
       originalTableWrapper.classList.remove('hidden');
+    }
+    
+    function createTableHeader(text) {
+      const th = document.createElement('th');
+      th.textContent = text;
+      return th;
     }
 
     function renderScheduleTable(result) {
