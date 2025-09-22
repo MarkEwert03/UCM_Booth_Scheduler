@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Volunteer Scheduler</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f8f9fb;
+      --card: #ffffff;
+      --border: #ccd4dd;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --danger: #b91c1c;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      --radius: 10px;
+      --shadow: 0 2px 4px rgba(0, 0, 0, .06), 0 4px 12px rgba(0, 0, 0, .04);
+    }
+
+    body {
+      font-family: system-ui, Arial, sans-serif;
+      margin: 0;
+      padding: 2rem clamp(1rem, 3vw, 3rem);
+      background: var(--bg);
+      line-height: 1.4;
+    }
+
+    h1,
+    h2 {
+      font-weight: 600;
+      letter-spacing: .5px;
+      margin-top: 1.2em;
+    }
+
+    h1 {
+      margin-top: 0;
+      font-size: clamp(1.6rem, 2.2vw, 2.4rem);
+    }
+
+    p.description {
+      max-width: 60ch;
+    }
+
+    .flex {
+      display: flex;
+      gap: .75rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    button {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: .7rem 1.1rem;
+      font-size: .95rem;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+      letter-spacing: .5px;
+      display: inline-flex;
+      align-items: center;
+      gap: .4rem;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, .15);
+      transition: background .18s, transform .15s;
+    }
+
+    button.secondary {
+      background: #64748b;
+    }
+
+    button:disabled {
+      opacity: .45;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    button:hover:not(:disabled) {
+      background: var(--accent-hover);
+    }
+
+    button.secondary:hover:not(:disabled) {
+      background: #475569;
+    }
+
+    button:active:not(:disabled) {
+      transform: translateY(1px);
+    }
+
+    .table-wrapper {
+      overflow-x: auto;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem 1rem .6rem;
+      box-shadow: var(--shadow);
+      margin-top: 1.2rem;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: .92rem;
+      min-width: 520px;
+    }
+
+    th,
+    td {
+      padding: .55rem .65rem;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: #e2e8f0;
+      font-weight: 600;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      letter-spacing: .4px;
+    }
+
+    tbody tr:nth-child(even) {
+      background: #f1f5f9;
+    }
+
+    code.inline {
+      padding: .15rem .4rem;
+      background: #e2e8f0;
+      border-radius: 6px;
+      font-family: var(--mono);
+      font-size: .8rem;
+    }
+
+    .badge {
+      display: inline-block;
+      background: #1e293b;
+      color: #fff;
+      padding: .2rem .5rem;
+      border-radius: 999px;
+      font-size: .65rem;
+      letter-spacing: .5px;
+      text-transform: uppercase;
+      margin-right: .35rem;
+    }
+
+    .slots {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .35rem;
+    }
+
+    .slot-pill {
+      background: #2563eb;
+      color: #fff;
+      padding: .25rem .55rem;
+      font-size: .7rem;
+      border-radius: 999px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, .25);
+      font-weight: 500;
+      letter-spacing: .5px;
+    }
+
+    footer {
+      margin-top: 3rem;
+      font-size: .75rem;
+      opacity: .7;
+      text-align: center;
+    }
+
+    .error {
+      color: var(--danger);
+      font-weight: 600;
+      margin-top: .5rem;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .fade-in {
+      animation: fade .45s ease;
+    }
+
+    @keyframes fade {
+      from {
+        opacity: 0;
+        transform: translateY(4px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0f172a;
+        --card: #1e293b;
+        --border: #2e3a4b;
+        --accent: #2563eb;
+        --accent-hover: #1d4ed8;
+      }
+
+      th {
+        background: #334155;
+      }
+
+      tbody tr:nth-child(even) {
+        background: #24324a;
+      }
+
+      code.inline {
+        background: #334155;
+      }
+
+      .slot-pill {
+        background: #1d4ed8;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Volunteer Scheduler</h1>
+  <p class="description">
+    The algorithm assigns each volunteer to exactly one slot (the end time of
+    a range),
+    prioritizing volunteers with the fewest available slots, and then balancing load by choosing the slot with the
+    fewest assignments so far.
+  </p>
+  <!-- Local file input -->
+  <label for="csvFile"><strong>Upload CSV file:</strong></label>
+  <input type="file" id="csvFile" accept=".csv,text/csv" />
+  <button id="fileLoadBtn" type="button">Load File</button>
+
+  <!-- Google Sheets public CSV URL input -->
+  <br><br>
+  <label for="sheetUrl"><strong>Or load from Google Sheets (Live Clubs Fair Data):</strong></label>
+  <button id="loadSheetBtn" type="button">Load Sheet</button>
+
+  <div class="flex" style="margin-top:.5rem;">
+    <button id="loadBtn" type="button">Load CSV</button>
+    <button id="scheduleBtn" type="button" disabled>Find Schedule (reclick to find another valid schedule)</button>
+    <button id="resetBtn" type="button" class="secondary">Reset</button>
+  </div>
+  <div id="error" class="error hidden"></div>
+
+  <div class="table-wrapper">
+    <h2 id="toggleOriginalBtn" style="margin-top:0; cursor:pointer;" title="Click to collapse/reopen">Parsed
+      Availability ▼</h2>
+    <div id="originalTableWrapper" class="table-wrapper hidden">
+      <div id="originalMeta" style="font-size:.75rem; opacity:.75; margin-bottom:.4rem;"></div>
+      <table id="originalTable" aria-label="Original availability table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Name</th>
+            <th>Availability</th>
+            <th>Assignable Slot End Times</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="scheduleWrapper" class="table-wrapper hidden fade-in">
+    <h2 style="margin-top:0;">Generated Schedule</h2>
+    <div id="scheduleMeta" style="font-size:.75rem; opacity:.75; margin-bottom:.4rem;"></div>
+    <table id="scheduleTable" aria-label="Generated schedule table">
+      <thead>
+        <tr>
+          <th>Time Slot (End)</th>
+          <th>Assigned Volunteers</th>
+          <th>Count</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script>
+    /*
+        Volunteer Scheduler (client-side)
+        Mirrors the Python logic:
+    
+        1. Parse CSV with columns Name, Availability
+        2. For each row:
+            - Split Availability by commas
+            - Remove "Set Up" / "Teardown" (case-insensitive)
+            - Extract end-times from matches like: H:MM - H:MM
+            - Use ONLY end time string (second time) for scheduling
+        3. scheduler(volunteers):
+            - Sort volunteers by ascending number of slots
+            - If only one slot, assign directly
+            - Else choose slot currently having the fewest volunteers; ties resolved by first in list
+            - Each volunteer assigned exactly once
+    */
+
+    const csvTextarea = document.getElementById('csvInput');
+    const loadBtn = document.getElementById('loadBtn');
+    const scheduleBtn = document.getElementById('scheduleBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const toggleOriginalBtn = document.getElementById('toggleOriginalBtn');
+    const originalTableWrapper = document.getElementById('originalTableWrapper');
+    const originalTableBody = document.querySelector('#originalTable tbody');
+    const originalMeta = document.getElementById('originalMeta');
+    const scheduleWrapper = document.getElementById('scheduleWrapper');
+    const scheduleTableBody = document.querySelector('#scheduleTable tbody');
+    const scheduleMeta = document.getElementById('scheduleMeta');
+    const errorBox = document.getElementById('error');
+    const fileInput = document.getElementById('csvFile');
+    const fileLoadBtn = document.getElementById('fileLoadBtn');
+    const loadSheetBtn = document.getElementById('loadSheetBtn');
+
+    let volunteerMap = {}; // { name: [slotEndTimes] }
+    let originalRows = []; // store parsed row info for display
+    let scheduled = null;  // result schedule
+    let originalTableVisible = true;
+
+    function showError(msg) {
+      errorBox.textContent = msg;
+      errorBox.classList.remove('hidden');
+    }
+    function clearError() {
+      errorBox.classList.add('hidden');
+      errorBox.textContent = '';
+    }
+
+    // Utility to finalize loading given raw CSV text
+    function loadCsvText(text) {
+      clearError();
+      scheduleWrapper.classList.add('hidden');
+
+      // Parse with PapaParse
+      const result = Papa.parse(text, {
+        header: true,
+        skipEmptyLines: true,
+        dynamicTyping: false
+      });
+      if (!result.data || result.data.length === 0) {
+        showError("No valid rows found in CSV file.");
+        return;
+      }
+
+      // Use the parsed data array (each item is an object with column names as keys)
+      // For Google Forms: "Full name" and "What times are you available?"
+      const rows = result.data.map(obj => ({
+        name: obj["Full name"]?.trim() || "",
+        availability: obj["What times are you available?"]?.trim() || ""
+      })).filter(r => r.name);
+
+      const { map, displayRows } = buildVolunteerMap(rows);
+      volunteerMap = map;
+      originalRows = displayRows;
+      renderOriginalTable(displayRows);
+      const usable = Object.values(volunteerMap).some(v => v.length > 0);
+      scheduleBtn.disabled = !usable;
+      if (!usable) showError("Parsed CSV contains no assignable slots.");
+    }
+
+    // --- Local file load handler ---
+    if (fileLoadBtn) {
+      fileLoadBtn.addEventListener('click', () => {
+        clearError();
+        if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+          showError("Select a CSV file first.");
+          return;
+        }
+        const file = fileInput.files[0];
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          // Remove possible BOM
+          const text = (e.target.result || '').replace(/^\uFEFF/, '');
+          loadCsvText(text);
+        };
+        reader.onerror = () => showError("Error reading file.");
+        reader.readAsText(file);
+      });
+    }
+
+    // --- Remote URL fetch handler ---
+    if (loadSheetBtn) {
+      loadSheetBtn.addEventListener('click', async () => {
+        clearError();
+        const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQvB0fFHeDVQUmFn5asLYew5HvK6-NjfRhp1_BWZpCk-u64OStxSwTCYiRulHdG6SFEQKfZDy3e1HWl/pub?gid=2137675629&single=true&output=csv";
+        try {
+          const resp = await fetch(SHEET_CSV_URL);
+          if (!resp.ok) throw new Error("Error fetching the Sheet.");
+          const csvText = await resp.text();
+          loadCsvText(csvText);
+        } catch (e) {
+          showError("Failed to fetch Google Sheet CSV. Check the URL and permissions.");
+        }
+      });
+    }
+
+    // Basic CSV parser for this controlled use-case
+    function parseCSV(text) {
+      // Handles quoted fields with commas, simple approach
+      const lines = text
+        .split(/\r?\n/)
+        .filter(l => l.trim().length > 0);
+      if (lines.length === 0) return [];
+
+      const headers = splitCSVLine(lines[0]);
+
+      const headersLower = headers.map(h => h.trim().toLowerCase());
+
+      const fullNameIdx = headersLower.indexOf("full name");
+      // Find the availability-like column (allowing slight wording variations)
+      const availColIdx = headersLower.findIndex(h => h.startsWith("what times are you available"));
+      const rows = [];
+      for (let i = 1; i < lines.length; i++) {
+        const parts = splitCSVLine(lines[i]);
+        if (parts.length !== headers.length) continue;
+        const fullName = (parts[fullNameIdx] || "").trim();
+        const availRaw = (parts[availColIdx] || "").trim();
+        if (!fullName) continue;
+
+        // Use survey-specific extractor
+        const { slots, tokens } = extractSurveySlots(availRaw);
+
+        // Fabricate a pseudo "Availability" string that mimics old format
+        // by turning each slot into a dummy "X - SLOT" range so that the
+        // old extractEndSlots() keeps working if you leave it unchanged.
+        // We'll assume 1-hour blocks backward from end just for display; this doesn't affect scheduling logic which only takes end times.
+        const fabricated = slots.map(end => {
+          // Infer a start hour (end - 1 hour); not exact if minutes != 00, but good enough for visualization.
+          const [eh, em] = end.split(":").map(Number);
+          const sh = (eh - 1 >= 0) ? (eh - 1) : 0;
+          const startStr = `${sh}:${em.toString().padStart(2, "0")}`;
+          return `${startStr} - ${end}`;
+        });
+
+        // Store a row shaped like the original parser produced
+        rows.push({
+          name: fullName,
+          availability: fabricated.join(", ")
+        });
+      }
+      return rows; // Short-circuit returning the normalized list
+
+      const nameIdx = headers.findIndex(h => h.trim().toLowerCase() === 'name');
+      const availIdx = headers.findIndex(h => h.trim().toLowerCase() === 'availability');
+      if (nameIdx === -1 || availIdx === -1) {
+        throw new Error("CSV must contain 'Name' and 'Availability' headers");
+      }
+
+      for (let i = 1; i < lines.length; i++) {
+        const parts = splitCSVLine(lines[i]);
+        if (parts.length !== headers.length) {
+          // Skip malformed lines gracefully
+          continue;
+        }
+        const name = (parts[nameIdx] || '').trim();
+        const availability = (parts[availIdx] || '').trim();
+        if (!name) continue;
+        rows.push({ name, availability });
+      }
+      return rows;
+    }
+
+    // Splits a CSV row into fields accounting for simple quotes
+    function splitCSVLine(line) {
+      const out = [];
+      let current = '';
+      let inQuotes = false;
+      for (let i = 0; i < line.length; i++) {
+        const c = line[i];
+        if (c === '"') {
+          if (inQuotes && line[i + 1] === '"') {
+            current += '"'; i++;
+          } else {
+            inQuotes = !inQuotes;
+          }
+        } else if (c === ',' && !inQuotes) {
+          out.push(current);
+          current = '';
+        } else {
+          current += c;
+        }
+      }
+      out.push(current);
+      return out;
+    }
+
+function extractEndSlots(rawAvailability) {
+    if (!rawAvailability) return { slots: [], tokens: [] };
+    // Split by commas, trim
+    const tokens = rawAvailability.split(',').map(t => t.trim()).filter(Boolean);
+    const assignable = [];
+    const filteredTokens = [];
+    for (const token of tokens) {
+        // Remove parenthetical notes
+        let cleaned = token.replace(/\([^)]*\)/g, '').trim();
+
+        // Match intervals like '11 AM - 12 PM', '12 - 1 PM', or '1:00 - 2:00 PM'
+        const m = cleaned.match(/^(\d{1,2}(?::\d{2})?)\s*(AM|PM)?\s*-\s*(\d{1,2}(?::\d{2})?)\s*(AM|PM)?$/i);
+        if (m) {
+            // Get end time and meridiem
+            let hour = m[3];
+            let minute = '00';
+            if (hour.includes(':')) {
+                [hour, minute] = hour.split(':');
+            }
+            let meridiem = m[4] || m[2] || '';
+            hour = parseInt(hour, 10);
+            minute = parseInt(minute, 10);
+
+            if (!meridiem) meridiem = 'PM'; // Fallback default
+
+            // Convert to 24h format
+            if (meridiem.toUpperCase() === 'PM' && hour < 12) hour += 12;
+            if (meridiem.toUpperCase() === 'AM' && hour === 12) hour = 0;
+
+            const endStr = `${hour}:${minute.toString().padStart(2,'0')}`;
+            assignable.push(endStr);
+            filteredTokens.push(token);
+        } else {
+            filteredTokens.push(token);
+        }
+    }
+    return { slots: assignable, tokens: filteredTokens };
+}
+
+    function buildVolunteerMap(rows) {
+      const map = {};
+      const displayRows = [];
+
+      for (const row of rows) {
+        const { name, availability } = row;
+        const { tokens, slots } = extractEndSlots(availability);
+        if (slots.length > 0) {
+          map[name] = slots;
+        } else {
+          // Omit volunteers with no valid slot from scheduling,
+          // but still record them for original display
+          map[name] = [];
+        }
+        displayRows.push({
+          name,
+          rawTokens: tokens,
+          slots
+        });
+      }
+      return { map, displayRows };
+    }
+
+    // Parse a single flexible interval like:
+    //  "11 AM - 12 PM"
+    //  "12 - 1 PM"
+    //  "3 - 4 PM (Help with teardown as well)"
+    //  Returns an object { end: "H:MM" } or null if not parseable.
+    function parseFlexibleInterval(raw) {
+      // Remove notes in ()
+      let cleaned = raw.replace(/\([^)]*\)/g, "").trim();
+
+      // Common noise words that imply setup/teardown; if present alone, skip
+      // (Not strictly necessary because we only look for intervals with a dash)
+      // but we keep it for clarity.
+      const lower = cleaned.toLowerCase();
+      if (/(teardown|tear ?down|set ?up)/.test(lower) && !/-/.test(cleaned)) {
+        return null;
+      }
+
+      // Look for pattern: start - end
+      if (!/ - /.test(cleaned) && !/-/.test(cleaned)) return null;
+
+      // Normalize dashes with spaces around for easier splitting
+      cleaned = cleaned.replace(/\s*-\s*/, " - ");
+
+      // Split once on ' - '
+      const parts = cleaned.split(" - ");
+      if (parts.length !== 2) return null;
+
+      let startPart = parts[0].trim();
+      let endPart = parts[1].trim();
+
+      // Extract any meridiem markers (AM/PM) from each side
+      const meridiemRegex = /\b(AM|PM)\b/i;
+      const endMeridiemMatch = endPart.match(meridiemRegex);
+      const startMeridiemMatch = startPart.match(meridiemRegex);
+
+      let endMeridiem = endMeridiemMatch ? endMeridiemMatch[1].toUpperCase() : null;
+      let startMeridiem = startMeridiemMatch ? startMeridiemMatch[1].toUpperCase() : null;
+
+      // If start side missing meridiem, inherit from end side (common survey shorthand)
+      if (!startMeridiem && endMeridiem) {
+        startMeridiem = endMeridiem;
+      }
+
+      // Strip meridiems from numeric extraction
+      startPart = startPart.replace(meridiemRegex, "").trim();
+      endPart = endPart.replace(meridiemRegex, "").trim();
+
+      // Allow forms like "11", "11:30"
+      const timePattern = /^(\d{1,2})(?::(\d{2}))?$/;
+
+      const startMatch = startPart.match(timePattern);
+      const endMatch = endPart.match(timePattern);
+      if (!endMatch) return null; // Need end time at least
+
+      // If we lack an end meridiem entirely, we cannot confidently parse
+      if (!endMeridiem) {
+        // Heuristic: if someone wrote "11 - 12" you could guess daytime,
+        // but better to skip ambiguous intervals
+        return null;
+      }
+
+      function to24h(hourStr, minuteStr, meridiem) {
+        let h = parseInt(hourStr, 10);
+        const m = minuteStr ? parseInt(minuteStr, 10) : 0;
+        if (meridiem === "AM") {
+          if (h === 12) h = 0;
+        } else if (meridiem === "PM") {
+          if (h !== 12) h += 12;
+        }
+        return { h, m };
+      }
+
+      // Convert end time
+      const endObj = to24h(endMatch[1], endMatch[2], endMeridiem);
+
+      // Return end as H:MM (no leading zero on hour)
+      const endStr = `${endObj.h}:${endObj.m.toString().padStart(2, "0")}`;
+
+      return { end: endStr };
+    }
+
+    // Convert semicolon-separated intervals from the new survey field
+    // Returns { slots: [endTimes], tokens: [originalIntervalsSanitized] }
+    function extractSurveySlots(rawField) {
+      if (!rawField) return { slots: [], tokens: [] };
+      const segments = rawField.split(";").map(s => s.trim()).filter(Boolean);
+      const slots = [];
+      const tokens = [];
+      for (const seg of segments) {
+        const parsed = parseFlexibleInterval(seg);
+        if (parsed) {
+          slots.push(parsed.end);
+          tokens.push(seg);
+        } else {
+          // Keep token for transparency even if not parsed
+          tokens.push(seg);
+        }
+      }
+      return { slots, tokens };
+    }
+
+    function shuffle(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+
+    /*
+    * Updated schedule() with randomness:
+    * - Groups volunteers by number of available slots(ascending order).
+    * - Shuffles within each group so tie ordering varies.
+    * - When assigning a volunteer who has multiple slots, picks randomly among
+          * those slots currently tied for the lowest number of assigned volunteers.
+    */
+    function schedule(volunteers) {
+      // Build list excluding volunteers with zero usable slots
+      const volunteerList = Object.entries(volunteers)
+        .filter(([_, slots]) => slots && slots.length > 0)
+        .map(([name, slots]) => [name, slots.slice()]); // shallow copy of slots
+
+      // Group volunteers by number of available slots
+      const groups = new Map(); // key: slotCount -> array of [name, slots]
+      for (const [name, slots] of volunteerList) {
+        const k = slots.length;
+        if (!groups.has(k)) groups.set(k, []);
+        groups.get(k).push([name, slots]);
+      }
+
+      // Assemble ordered list: ascending by number of slots, shuffle ties
+      const ordered = [];
+      Array.from(groups.keys()).sort((a, b) => a - b).forEach(k => {
+        const groupArr = groups.get(k);
+        shuffle(groupArr);     // randomness among equals
+        ordered.push(...groupArr);
+      });
+
+      const scheduleMap = {}; // slot -> [names]
+
+      for (const [name, slots] of ordered) {
+        if (slots.length === 1) {
+          const sole = slots[0];
+          if (!scheduleMap[sole]) scheduleMap[sole] = [];
+          scheduleMap[sole].push(name);
+          continue;
+        }
+
+        // Determine current minimum assignment count across the volunteer's slots
+        let minCount = Infinity;
+        const slotCounts = slots.map(slot => {
+          const count = (scheduleMap[slot]?.length) || 0;
+          if (count < minCount) minCount = count;
+          return { slot, count };
+        });
+
+        // Collect candidates with that minimum count
+        const candidates = slotCounts
+          .filter(sc => sc.count === minCount)
+          .map(sc => sc.slot);
+
+        // Randomly choose among the equally best slots
+        const chosen = candidates[Math.floor(Math.random() * candidates.length)];
+
+        if (!scheduleMap[chosen]) scheduleMap[chosen] = [];
+        scheduleMap[chosen].push(name);
+      }
+
+      return scheduleMap;
+    }
+
+    function renderOriginalTable(displayRows) {
+      originalTableBody.innerHTML = '';
+      let idx = 1;
+      for (const row of displayRows) {
+        const tr = document.createElement('tr');
+
+        const tdIndex = document.createElement('td');
+        tdIndex.textContent = idx++;
+
+        const tdName = document.createElement('td');
+        tdName.textContent = row.name;
+
+        const tdRaw = document.createElement('td');
+        tdRaw.innerHTML = row.rawTokens.map(tok => `<code class="inline">${escapeHTML(tok)}</code>`).join(' ');
+
+        const tdSlots = document.createElement('td');
+        if (row.slots.length > 0) {
+          const container = document.createElement('div');
+          container.className = 'slots';
+          row.slots.forEach(s => {
+            const span = document.createElement('span');
+            span.className = 'slot-pill';
+            span.textContent = s;
+            container.appendChild(span);
+          });
+          tdSlots.appendChild(container);
+        } else {
+          tdSlots.innerHTML = '<em style="opacity:.6">None</em>';
+        }
+
+        tr.append(tdIndex, tdName, tdRaw, tdSlots);
+        originalTableBody.appendChild(tr);
+      }
+
+      const total = displayRows.length;
+      const usable = displayRows.filter(r => r.slots.length > 0).length;
+      originalMeta.textContent = `Volunteers: ${total} (Assignable: ${usable}) • Generated at ${new Date().toLocaleTimeString()}`;
+      originalTableWrapper.classList.remove('hidden');
+    }
+
+    function renderScheduleTable(result) {
+      scheduleTableBody.innerHTML = '';
+      const slots = Object.keys(result).sort((a, b) => timeToNumber(a) - timeToNumber(b));
+      for (const slot of slots) {
+        const volunteers = result[slot].slice().sort((a, b) => a.localeCompare(b));
+        const tr = document.createElement('tr');
+
+        const tdSlot = document.createElement('td');
+        const slot_prev = `${slot.split(':').map(Number)[0] - 1}:00`;
+        tdSlot.innerHTML = `<strong>${slot_prev} - ${slot}</strong>`;
+
+        const tdNames = document.createElement('td');
+        tdNames.innerHTML = volunteers.map(v => `<code class="inline">${escapeHTML(v)}</code>`).join(' ');
+
+        const tdCount = document.createElement('td');
+        tdCount.textContent = volunteers.length.toString();
+
+        tr.append(tdSlot, tdNames, tdCount);
+        scheduleTableBody.appendChild(tr);
+      }
+      const assignedCount = Object.values(result).reduce((acc, arr) => acc + arr.length, 0);
+      scheduleMeta.textContent = `Time slots: ${slots.length} • Volunteers assigned: ${assignedCount} • Computed at ${new Date().toLocaleTimeString()}`;
+      scheduleWrapper.classList.remove('hidden');
+    }
+
+    function timeToNumber(t) {
+      // "H:MM" -> minutes
+      const [h, m] = t.split(':').map(Number);
+      return h * 60 + m;
+    }
+
+    function escapeHTML(str) {
+      return str.replace(/[&<>"]/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'
+      }[c]));
+    }
+
+    // Event Handlers
+    loadBtn.addEventListener('click', () => {
+      clearError();
+      scheduleWrapper.classList.add('hidden');
+      scheduled = null;
+
+      const text = csvTextarea.value.trim();
+      if (!text) {
+        showError("Please provide CSV input.");
+        return;
+      }
+      let rows;
+      try {
+        rows = parseCSV(text);
+        if (rows.length === 0) {
+          showError("No valid data rows found.");
+          return;
+        }
+      } catch (e) {
+        showError(e.message);
+        return;
+      }
+      const { map, displayRows } = buildVolunteerMap(rows);
+      volunteerMap = map;
+      originalRows = displayRows;
+      renderOriginalTable(displayRows);
+
+      const usable = Object.values(volunteerMap).some(v => v.length > 0);
+      scheduleBtn.disabled = !usable;
+      if (!usable) {
+        showError("Parsed data contains no assignable slots.");
+      }
+    });
+
+    scheduleBtn.addEventListener('click', () => {
+      clearError();
+      if (!volunteerMap || Object.keys(volunteerMap).length === 0) {
+        showError("Load CSV first.");
+        return;
+      }
+      scheduled = schedule(volunteerMap);
+      renderScheduleTable(scheduled);
+      scheduleBtn.blur();
+    });
+
+    resetBtn.addEventListener('click', () => {
+      clearError();
+      volunteerMap = {};
+      originalRows = [];
+      scheduled = null;
+      originalTableBody.innerHTML = '';
+      scheduleTableBody.innerHTML = '';
+      originalTableWrapper.classList.add('hidden');
+      scheduleWrapper.classList.add('hidden');
+      scheduleBtn.disabled = true;
+      csvTextarea.focus();
+    });
+
+    toggleOriginalBtn.addEventListener('click', () => {
+      originalTableVisible = !originalTableVisible;
+      if (originalTableVisible) {
+        originalTableWrapper.classList.remove('hidden');
+        // Button text or heading arrow
+        toggleOriginalBtn.textContent = 'Parsed Availability ▼';
+      } else {
+        originalTableWrapper.classList.add('hidden');
+        toggleOriginalBtn.textContent = 'Parsed Availability ▶';
+      }
+    });
+  </script>
+</body>
+
+</html>
